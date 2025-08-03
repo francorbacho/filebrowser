@@ -116,9 +116,7 @@ func listDirectory(w http.ResponseWriter, dirPath string, urlPath string) {
 		return fileInfos[i].Name < fileInfos[j].Name
 	})
 
-	tmpl := template.Must(template.New("index").Parse(htmlTemplate))
-	
-	tmpl.Funcs(template.FuncMap{
+	tmpl := template.New("index").Funcs(template.FuncMap{
 		"safeHTML": func(s string) template.HTML {
 			return template.HTML(s)
 		},
