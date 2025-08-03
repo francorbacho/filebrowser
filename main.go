@@ -116,6 +116,20 @@ func listDirectory(w http.ResponseWriter, dirPath string, urlPath string) {
 		return fileInfos[i].Name < fileInfos[j].Name
 	})
 
+	tmpl := template.Must(template.New("index").Parse(htmlTemplate))
+	
+	tmpl.Funcs(template.FuncMap{
+		"safeHTML": func(s string) template.HTML {
+			return template.HTML(s)
+		},
+	})
+	
+	tmpl, err = tmpl.Parse(htmlTemplate)
+	if err != nil {
+		http.Error(w, "Error rendering page", http.StatusInternalServerError)
+		return
+	}
+
 	data := struct {
 		CurrentPath  string
 		ParentURL    string
@@ -130,7 +144,6 @@ func listDirectory(w http.ResponseWriter, dirPath string, urlPath string) {
 		ExtraHeaders: extraHeaders,
 	}
 
-	tmpl := template.Must(template.New("index").Parse(htmlTemplate))
 	tmpl.Execute(w, data)
 }
 
@@ -197,7 +210,7 @@ const htmlTemplate = `<!DOCTYPE html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}}</title>
-{{.ExtraHeaders}}
+{{.ExtraHeaders | safeHTML}}
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: monospace; font-size: 14px; background: #fff; color: #000; height: 100vh; }
@@ -274,5 +287,4 @@ const htmlTemplate = `<!DOCTYPE html>
     });
   </script>
 </body>
-</html>
-`
+</html>`
