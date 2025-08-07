@@ -14,7 +14,7 @@ import (
 
 const (
 	port     = ":8000"
-	filesDir = "./files"
+	filesDir = "/files"
 )
 
 type FileInfo struct {
@@ -167,7 +167,16 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	filename := strings.ReplaceAll(header.Filename, "/", "_")
-	dst, err := os.Create(filepath.Join(fullPath, filename))
+	finalPath := filepath.Join(fullPath, filename)
+
+	absFilesDir, _ := filepath.Abs(filesDir)
+	absFinalPath, _ := filepath.Abs(finalPath)
+	if !strings.HasPrefix(absFinalPath, absFilesDir) {
+		http.Error(w, "Invalid file path", http.StatusForbidden)
+		return
+	}
+
+	dst, err := os.Create(finalPath)
 	if err != nil {
 		http.Error(w, "Unable to save file", http.StatusInternalServerError)
 		return
