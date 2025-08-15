@@ -28,6 +28,9 @@ type FileInfo struct {
 var (
 	title        = getEnv("TITLE", "File Server")
 	extraHeaders = getEnv("EXTRA_HEADERS", "")
+	// Build information - set via ldflags during build
+	GitCommit = "unknown"
+	BuildDate = "unknown"
 )
 
 func main() {
@@ -134,12 +137,16 @@ func listDirectory(w http.ResponseWriter, dirPath string, urlPath string) {
 		Files        []FileInfo
 		Title        string
 		ExtraHeaders string
+		GitCommit    string
+		BuildDate    string
 	}{
 		CurrentPath:  urlPath,
 		ParentURL:    parentURL,
 		Files:        fileInfos,
 		Title:        title,
 		ExtraHeaders: extraHeaders,
+		GitCommit:    GitCommit,
+		BuildDate:    BuildDate,
 	}
 
 	tmpl.Execute(w, data)
@@ -222,7 +229,7 @@ const htmlTemplate = `<!DOCTYPE html>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: monospace; font-size: 14px; background: #fff; color: #000; height: 100vh; }
   header { background: #f0f0f0; padding: 10px; border-bottom: 1px solid #ddd; display: flex; flex-direction: column; }
-  main { padding: 10px; overflow: auto; height: calc(100vh - 100px); }
+  main { padding: 10px; overflow: auto; height: calc(100vh - 130px); }
   table { width: 100%; border-collapse: collapse; }
   th { text-align: left; padding: 8px 4px; border-bottom: 1px solid #ddd; }
   td { padding: 8px 4px; border-bottom: 1px solid #eee; white-space: nowrap; }
@@ -277,6 +284,10 @@ const htmlTemplate = `<!DOCTYPE html>
       </tbody>
     </table>
   </main>
+
+  <footer style="position: fixed; bottom: 0; left: 0; right: 0; background: #f0f0f0; padding: 5px 10px; border-top: 1px solid #ddd; font-size: 11px; color: #666;">
+    Build: {{.GitCommit}} | {{.BuildDate}}
+  </footer>
 
   <script>
     document.getElementById('search').addEventListener('input', function(e) {
