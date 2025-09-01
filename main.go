@@ -54,9 +54,18 @@ func pathHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, err := os.Stat(filesDir); os.IsNotExist(err) {
+		http.Error(w, fmt.Sprintf("files dir %s: no such directory", filesDir), http.StatusInternalServerError)
+		return
+	}
+
 	info, err := os.Stat(fullPath)
 	if err != nil {
-		http.NotFound(w, r)
+		if urlPath == "/" {
+			http.Error(w, fmt.Sprintf("files dir %s: inaccessible or bad perms", filesDir), http.StatusInternalServerError)
+		} else {
+			http.Error(w, fmt.Sprintf("%s: no such file or directory", fullPath), http.StatusNotFound)
+		}
 		return
 	}
 
@@ -224,23 +233,150 @@ const htmlTemplate = `<!DOCTYPE html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}}</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>📁</text></svg>">
 {{.ExtraHeaders | safeHTML}}
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: monospace; font-size: 14px; background: #fff; color: #000; height: 100vh; }
-  header { background: #f0f0f0; padding: 10px; border-bottom: 1px solid #ddd; display: flex; flex-direction: column; }
+
+  :root {
+    --bg-color: #fff;
+    --text-color: #000;
+    --header-bg: #f0f0f0;
+    --border-color: #ddd;
+    --border-light: #eee;
+    --row-even: #f8f8f8;
+    --footer-bg: #f0f0f0;
+    --footer-text: #666;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-color: #1a1a1a;
+      --text-color: #e0e0e0;
+      --header-bg: #2a2a2a;
+      --border-color: #444;
+      --border-light: #333;
+      --row-even: #252525;
+      --footer-bg: #2a2a2a;
+      --footer-text: #888;
+    }
+  }
+
+  [data-theme="dark"] {
+    --bg-color: #1a1a1a;
+    --text-color: #e0e0e0;
+    --header-bg: #2a2a2a;
+    --border-color: #444;
+    --border-light: #333;
+    --row-even: #252525;
+    --footer-bg: #2a2a2a;
+    --footer-text: #888;
+  }
+
+  [data-theme="light"] {
+    --bg-color: #fff;
+    --text-color: #000;
+    --header-bg: #f0f0f0;
+    --border-color: #ddd;
+    --border-light: #eee;
+    --row-even: #f8f8f8;
+    --footer-bg: #f0f0f0;
+    --footer-text: #666;
+  }
+
+  body {
+    font-family: monospace;
+    font-size: 14px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    height: 100vh;
+  }
+  header {
+    background: var(--header-bg);
+    padding: 10px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
   main { padding: 10px; overflow: auto; height: calc(100vh - 130px); }
   table { width: 100%; border-collapse: collapse; }
-  th { text-align: left; padding: 8px 4px; border-bottom: 1px solid #ddd; }
-  td { padding: 8px 4px; border-bottom: 1px solid #eee; white-space: nowrap; }
-  tr:nth-child(even) { background: #f8f8f8; }
+  th {
+    text-align: left;
+    padding: 8px 4px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  td {
+    padding: 8px 4px;
+    border-bottom: 1px solid var(--border-light);
+    white-space: nowrap;
+  }
+  tr:nth-child(even) { background: var(--row-even); }
   .name { width: 60%; overflow: hidden; text-overflow: ellipsis; }
   .size { width: 15%; }
   .date { width: 25%; }
-  .upload-form { display: flex; margin-top: 10px; }
-  .search-box { margin-bottom: 10px; padding: 4px; width: 100%; font-family: monospace; }
-  input[type="file"] { flex-grow: 1; }
-  button { padding: 4px 8px; margin-left: 5px; }
+  .upload-form { display: flex; align-items: center; }
+  .search-box {
+    padding: 4px;
+    width: 100%;
+    font-family: monospace;
+    background: var(--bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+  }
+  input[type="file"] {
+    display: none;
+  }
+  .file-input-label {
+    flex-grow: 1;
+    padding: 4px 8px;
+    background: var(--header-bg);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    font-family: monospace;
+    font-size: 14px;
+    text-align: left;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .file-input-label:hover { opacity: 0.8; }
+  button {
+    padding: 4px 8px;
+    margin-left: 5px;
+    background: var(--header-bg);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+  }
+  button:hover { opacity: 0.8; }
+  a { color: var(--text-color); }
+  footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--footer-bg);
+    padding: 5px 40px 5px 10px;
+    border-top: 1px solid var(--border-color);
+    font-size: 11px;
+    color: var(--footer-text);
+  }
+  .theme-toggle {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 4px 8px;
+    background: var(--header-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 11px;
+    margin: 0;
+  }
+  .theme-toggle:hover { opacity: 0.8; }
 </style>
 </head>
 <body>
@@ -249,7 +385,8 @@ const htmlTemplate = `<!DOCTYPE html>
     <input type="text" id="search" class="search-box" placeholder="Filter by filename..." autocomplete="off">
     <form class="upload-form" action="/upload" method="post" enctype="multipart/form-data">
       <input type="hidden" name="dir" value="{{.CurrentPath}}">
-      <input type="file" name="file" required>
+      <input type="file" name="file" id="file-input" required>
+      <label for="file-input" class="file-input-label" id="file-label">Choose file...</label>
       <button type="submit">Upload</button>
     </form>
   </header>
@@ -285,11 +422,25 @@ const htmlTemplate = `<!DOCTYPE html>
     </table>
   </main>
 
-  <footer style="position: fixed; bottom: 0; left: 0; right: 0; background: #f0f0f0; padding: 5px 10px; border-top: 1px solid #ddd; font-size: 11px; color: #666;">
+  <footer>
     Build: {{.GitCommit}} | {{.BuildDate}}
+    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌓</button>
   </footer>
 
   <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+    }
+
+    document.getElementById('file-input').addEventListener('change', function(e) {
+      const label = document.getElementById('file-label');
+      const fileName = e.target.files[0]?.name || 'Choose file...';
+      label.textContent = fileName;
+    });
+
     document.getElementById('search').addEventListener('input', function(e) {
       const term = e.target.value.toLowerCase();
       const rows = document.querySelectorAll('.filerow');
