@@ -13,3 +13,9 @@ services:
       - TITLE=""
     restart: unless-stopped
 ```
+
+# images
+
+![filebrowser's dark theme](https://files.fran.cam/static/filebrowser-dark.png)
+
+![filebrowser's light theme](https://files.fran.cam/static/filebrowser-light.png)
