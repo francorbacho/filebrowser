@@ -435,10 +435,6 @@ const htmlTemplate = `<!DOCTYPE html>
       html.setAttribute('data-theme', next);
     }
 
-    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      document.documentElement.setAttribute('data-theme', 'dark');
-    }
-
     document.getElementById('file-input').addEventListener('change', function(e) {
       const label = document.getElementById('file-label');
       const fileName = e.target.files[0]?.name || 'Choose file...';
