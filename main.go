@@ -288,6 +288,7 @@ const htmlTemplate = `<!DOCTYPE html>
     border-bottom: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
+    gap: 10px;
   }
   main { padding: 10px; overflow: auto; height: calc(100vh - 130px); }
   table { width: 100%; border-collapse: collapse; }
@@ -305,9 +306,8 @@ const htmlTemplate = `<!DOCTYPE html>
   .name { width: 60%; overflow: hidden; text-overflow: ellipsis; }
   .size { width: 15%; }
   .date { width: 25%; }
-  .upload-form { display: flex; margin-top: 10px; align-items: center; }
+  .upload-form { display: flex; align-items: center; }
   .search-box {
-    margin-bottom: 10px;
     padding: 4px;
     width: 100%;
     font-family: monospace;
