@@ -227,20 +227,133 @@ const htmlTemplate = `<!DOCTYPE html>
 {{.ExtraHeaders | safeHTML}}
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: monospace; font-size: 14px; background: #fff; color: #000; height: 100vh; }
-  header { background: #f0f0f0; padding: 10px; border-bottom: 1px solid #ddd; display: flex; flex-direction: column; }
+
+  :root {
+    --bg-color: #fff;
+    --text-color: #000;
+    --header-bg: #f0f0f0;
+    --border-color: #ddd;
+    --border-light: #eee;
+    --row-even: #f8f8f8;
+    --footer-bg: #f0f0f0;
+    --footer-text: #666;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-color: #1a1a1a;
+      --text-color: #e0e0e0;
+      --header-bg: #2a2a2a;
+      --border-color: #444;
+      --border-light: #333;
+      --row-even: #252525;
+      --footer-bg: #2a2a2a;
+      --footer-text: #888;
+    }
+  }
+
+  [data-theme="dark"] {
+    --bg-color: #1a1a1a;
+    --text-color: #e0e0e0;
+    --header-bg: #2a2a2a;
+    --border-color: #444;
+    --border-light: #333;
+    --row-even: #252525;
+    --footer-bg: #2a2a2a;
+    --footer-text: #888;
+  }
+
+  [data-theme="light"] {
+    --bg-color: #fff;
+    --text-color: #000;
+    --header-bg: #f0f0f0;
+    --border-color: #ddd;
+    --border-light: #eee;
+    --row-even: #f8f8f8;
+    --footer-bg: #f0f0f0;
+    --footer-text: #666;
+  }
+
+  body {
+    font-family: monospace;
+    font-size: 14px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    height: 100vh;
+  }
+  header {
+    background: var(--header-bg);
+    padding: 10px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+  }
   main { padding: 10px; overflow: auto; height: calc(100vh - 130px); }
   table { width: 100%; border-collapse: collapse; }
-  th { text-align: left; padding: 8px 4px; border-bottom: 1px solid #ddd; }
-  td { padding: 8px 4px; border-bottom: 1px solid #eee; white-space: nowrap; }
-  tr:nth-child(even) { background: #f8f8f8; }
+  th {
+    text-align: left;
+    padding: 8px 4px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  td {
+    padding: 8px 4px;
+    border-bottom: 1px solid var(--border-light);
+    white-space: nowrap;
+  }
+  tr:nth-child(even) { background: var(--row-even); }
   .name { width: 60%; overflow: hidden; text-overflow: ellipsis; }
   .size { width: 15%; }
   .date { width: 25%; }
-  .upload-form { display: flex; margin-top: 10px; }
-  .search-box { margin-bottom: 10px; padding: 4px; width: 100%; font-family: monospace; }
-  input[type="file"] { flex-grow: 1; }
-  button { padding: 4px 8px; margin-left: 5px; }
+  .upload-form { display: flex; margin-top: 10px; align-items: center; }
+  .search-box {
+    margin-bottom: 10px;
+    padding: 4px;
+    width: 100%;
+    font-family: monospace;
+    background: var(--bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+  }
+  input[type="file"] {
+    flex-grow: 1;
+    background: var(--bg-color);
+    color: var(--text-color);
+  }
+  button {
+    padding: 4px 8px;
+    margin-left: 5px;
+    background: var(--header-bg);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+  }
+  button:hover { opacity: 0.8; }
+  a { color: var(--text-color); }
+  footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--footer-bg);
+    padding: 5px 40px 5px 10px;
+    border-top: 1px solid var(--border-color);
+    font-size: 11px;
+    color: var(--footer-text);
+  }
+  .theme-toggle {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 4px 8px;
+    background: var(--header-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 11px;
+    margin: 0;
+  }
+  .theme-toggle:hover { opacity: 0.8; }
 </style>
 </head>
 <body>
@@ -285,11 +398,27 @@ const htmlTemplate = `<!DOCTYPE html>
     </table>
   </main>
 
-  <footer style="position: fixed; bottom: 0; left: 0; right: 0; background: #f0f0f0; padding: 5px 10px; border-top: 1px solid #ddd; font-size: 11px; color: #666;">
+  <footer>
     Build: {{.GitCommit}} | {{.BuildDate}}
+    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌓</button>
   </footer>
 
   <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+    }
+
+    const saved = localStorage.getItem('theme');
+    if (saved) {
+      document.documentElement.setAttribute('data-theme', saved);
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+
     document.getElementById('search').addEventListener('input', function(e) {
       const term = e.target.value.toLowerCase();
       const rows = document.querySelectorAll('.filerow');
