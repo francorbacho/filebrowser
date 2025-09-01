@@ -315,10 +315,23 @@ const htmlTemplate = `<!DOCTYPE html>
     border: 1px solid var(--border-color);
   }
   input[type="file"] {
-    flex-grow: 1;
-    background: var(--bg-color);
-    color: var(--text-color);
+    display: none;
   }
+  .file-input-label {
+    flex-grow: 1;
+    padding: 4px 8px;
+    background: var(--header-bg);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    font-family: monospace;
+    font-size: 14px;
+    text-align: left;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .file-input-label:hover { opacity: 0.8; }
   button {
     padding: 4px 8px;
     margin-left: 5px;
@@ -362,7 +375,8 @@ const htmlTemplate = `<!DOCTYPE html>
     <input type="text" id="search" class="search-box" placeholder="Filter by filename..." autocomplete="off">
     <form class="upload-form" action="/upload" method="post" enctype="multipart/form-data">
       <input type="hidden" name="dir" value="{{.CurrentPath}}">
-      <input type="file" name="file" required>
+      <input type="file" name="file" id="file-input" required>
+      <label for="file-input" class="file-input-label" id="file-label">Choose file...</label>
       <button type="submit">Upload</button>
     </form>
   </header>
@@ -418,6 +432,12 @@ const htmlTemplate = `<!DOCTYPE html>
     } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
       document.documentElement.setAttribute('data-theme', 'dark');
     }
+
+    document.getElementById('file-input').addEventListener('change', function(e) {
+      const label = document.getElementById('file-label');
+      const fileName = e.target.files[0]?.name || 'Choose file...';
+      label.textContent = fileName;
+    });
 
     document.getElementById('search').addEventListener('input', function(e) {
       const term = e.target.value.toLowerCase();
