@@ -224,6 +224,7 @@ const htmlTemplate = `<!DOCTYPE html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}}</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>📁</text></svg>">
 {{.ExtraHeaders | safeHTML}}
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
