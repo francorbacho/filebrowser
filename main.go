@@ -54,9 +54,18 @@ func pathHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, err := os.Stat(filesDir); os.IsNotExist(err) {
+		http.Error(w, fmt.Sprintf("files dir %s: no such directory", filesDir), http.StatusInternalServerError)
+		return
+	}
+
 	info, err := os.Stat(fullPath)
 	if err != nil {
-		http.NotFound(w, r)
+		if urlPath == "/" {
+			http.Error(w, fmt.Sprintf("files dir %s: inaccessible or bad perms", filesDir), http.StatusInternalServerError)
+		} else {
+			http.Error(w, fmt.Sprintf("%s: no such file or directory", fullPath), http.StatusNotFound)
+		}
 		return
 	}
 
