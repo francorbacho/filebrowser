@@ -57,7 +57,7 @@ func main() {
 	http.HandleFunc("/upload", uploadHandler)
 
 	log.Printf("Server running at http://localhost%s", port)
-	
+
 	if disableUpload {
 		log.Printf("File uploads are disabled")
 	} else {
@@ -157,7 +157,7 @@ func listDirectory(w http.ResponseWriter, dirPath string, urlPath string) {
 			return template.HTML(s)
 		},
 	})
-	
+
 	tmpl, err = tmpl.Parse(htmlTemplate)
 	if err != nil {
 		http.Error(w, "Error rendering page", http.StatusInternalServerError)
@@ -406,6 +406,23 @@ const htmlTemplate = `<!DOCTYPE html>
     opacity: 0.5;
     cursor: not-allowed;
   }
+  .file-input-label.disabled::after {
+    content: " 🚫";
+    color: #999;
+  }
+  .drag-disabled {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--header-bg);
+    border: 2px solid var(--border-color);
+    padding: 10px 20px;
+    border-radius: 4px;
+    font-size: 16px;
+    z-index: 1000;
+    display: none;
+  }
   button {
     padding: 4px 8px;
     margin-left: 5px;
@@ -499,6 +516,8 @@ const htmlTemplate = `<!DOCTYPE html>
     <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌓</button>
   </footer>
 
+  <div id="drag-message" class="drag-disabled"></div>
+
   <script>
     function toggleTheme() {
       const html = document.documentElement;
@@ -526,6 +545,40 @@ const htmlTemplate = `<!DOCTYPE html>
         if (link.textContent === '..') return;
         row.style.display = name.includes(term) ? '' : 'none';
       });
+    });
+
+    // Drag and drop functionality
+    const fileInput = document.getElementById('file-input');
+    const dragMessage = document.getElementById('drag-message');
+
+    function showDragMessage(text) {
+      dragMessage.className = 'drag-disabled';
+      dragMessage.textContent = text;
+      dragMessage.style.display = 'block';
+    }
+
+    function hideDragMessage() {
+      dragMessage.style.display = 'none';
+    }
+
+    document.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      const text = fileInput.disabled ? '🚫 Uploads disabled' : '📁 Drop to upload';
+      showDragMessage(text);
+    });
+
+    document.addEventListener('dragleave', function(e) {
+      if (!e.relatedTarget) hideDragMessage();
+    });
+
+    document.addEventListener('drop', function(e) {
+      e.preventDefault();
+      hideDragMessage();
+      if (!fileInput.disabled && e.dataTransfer.files.length > 0) {
+        fileInput.files = e.dataTransfer.files;
+        const label = document.getElementById('file-label');
+        label.textContent = e.dataTransfer.files[0].name;
+      }
     });
   </script>
 </body>
