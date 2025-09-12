@@ -38,7 +38,7 @@ var (
 
 func main() {
 	var disableUploadFlag bool
-	flag.BoolVar(&disableUploadFlag, "disable-upload", false, "Disable file upload functionality")
+	flag.BoolVar(&disableUploadFlag, "no-upload", false, "Disable file uploads")
 	flag.Parse()
 
 	if disableUploadFlag {
@@ -51,9 +51,13 @@ func main() {
 	http.HandleFunc("/upload", uploadHandler)
 
 	log.Printf("Server running at http://localhost%s", port)
+	
 	if disableUpload {
 		log.Printf("File uploads are disabled")
+	} else {
+		log.Printf("File uploads are enabled")
 	}
+
 	log.Fatal(http.ListenAndServe(port, nil))
 }
 
