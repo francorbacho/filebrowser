@@ -27,6 +27,12 @@ type FileInfo struct {
 	URL          string
 }
 
+// Breadcrumb segment for the current path
+type Crumb struct {
+	Label string
+	URL   string
+}
+
 var (
 	title         = getEnv("TITLE", "File Server")
 	extraHeaders  = getEnv("EXTRA_HEADERS", "")
@@ -158,6 +164,8 @@ func listDirectory(w http.ResponseWriter, dirPath string, urlPath string) {
 		return
 	}
 
+	breadcrumbs := buildBreadcrumbs(urlPath)
+
 	data := struct {
 		CurrentPath   string
 		ParentURL     string
@@ -167,6 +175,7 @@ func listDirectory(w http.ResponseWriter, dirPath string, urlPath string) {
 		GitCommit     string
 		BuildDate     string
 		DisableUpload bool
+		Breadcrumbs   []Crumb
 	}{
 		CurrentPath:   urlPath,
 		ParentURL:     parentURL,
@@ -176,6 +185,7 @@ func listDirectory(w http.ResponseWriter, dirPath string, urlPath string) {
 		GitCommit:     GitCommit,
 		BuildDate:     BuildDate,
 		DisableUpload: disableUpload,
+		Breadcrumbs:   breadcrumbs,
 	}
 
 	tmpl.Execute(w, data)
@@ -260,6 +270,21 @@ func getBoolEnv(key string, defaultValue bool) bool {
 		}
 	}
 	return defaultValue
+}
+
+func buildBreadcrumbs(urlPath string) []Crumb {
+	crumbs := []Crumb{{Label: "/", URL: "/"}}
+	clean := strings.Trim(urlPath, "/")
+	if clean == "" {
+		return crumbs
+	}
+	parts := strings.Split(clean, "/")
+	current := "/"
+	for _, p := range parts {
+		current += p + "/"
+		crumbs = append(crumbs, Crumb{Label: p + "/", URL: current})
+	}
+	return crumbs
 }
 
 const htmlTemplate = `<!DOCTYPE html>
@@ -395,6 +420,8 @@ const htmlTemplate = `<!DOCTYPE html>
     cursor: not-allowed;
   }
   a { color: var(--text-color); }
+  header h1 a { text-decoration: none; }
+  header h1 a:hover { text-decoration: underline; }
   footer {
     position: fixed;
     bottom: 0;
@@ -424,7 +451,7 @@ const htmlTemplate = `<!DOCTYPE html>
 </head>
 <body>
   <header>
-    <h1>{{.CurrentPath}}</h1>
+    <h1>{{range .Breadcrumbs}}<a href="{{.URL}}">{{.Label}}</a>{{end}}</h1>
     <input type="text" id="search" class="search-box" placeholder="Filter by filename..." autocomplete="off">
     <form class="upload-form" action="/upload" method="post" enctype="multipart/form-data">
       <input type="hidden" name="dir" value="{{.CurrentPath}}">
