@@ -406,6 +406,23 @@ const htmlTemplate = `<!DOCTYPE html>
     opacity: 0.5;
     cursor: not-allowed;
   }
+  .file-input-label.disabled::after {
+    content: " 🚫";
+    color: #999;
+  }
+  .drag-disabled {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--header-bg);
+    border: 2px solid var(--border-color);
+    padding: 10px 20px;
+    border-radius: 4px;
+    font-size: 16px;
+    z-index: 1000;
+    display: none;
+  }
   button {
     padding: 4px 8px;
     margin-left: 5px;
@@ -499,6 +516,8 @@ const htmlTemplate = `<!DOCTYPE html>
     <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌓</button>
   </footer>
 
+  <div id="drag-message" class="drag-disabled"></div>
+
   <script>
     function toggleTheme() {
       const html = document.documentElement;
@@ -527,6 +546,48 @@ const htmlTemplate = `<!DOCTYPE html>
         row.style.display = name.includes(term) ? '' : 'none';
       });
     });
+
+    // Drag and drop functionality
+    const fileInput = document.getElementById('file-input');
+    const dragMessage = document.getElementById('drag-message');
+
+    if (!fileInput.disabled) {
+      document.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        dragMessage.className = 'drag-disabled';
+        dragMessage.textContent = '📁 Drop to upload';
+        dragMessage.style.display = 'block';
+      });
+
+      document.addEventListener('dragleave', function(e) {
+        if (!e.relatedTarget) dragMessage.style.display = 'none';
+      });
+
+      document.addEventListener('drop', function(e) {
+        e.preventDefault();
+        dragMessage.style.display = 'none';
+        if (e.dataTransfer.files.length > 0) {
+          fileInput.files = e.dataTransfer.files;
+          const label = document.getElementById('file-label');
+          label.textContent = e.dataTransfer.files[0].name;
+        }
+      });
+    } else {
+      // Show message when trying to drag with uploads disabled
+      document.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        dragMessage.className = 'drag-disabled';
+        dragMessage.textContent = '🚫 Uploads disabled';
+        dragMessage.style.display = 'block';
+      });
+      document.addEventListener('dragleave', function(e) {
+        if (!e.relatedTarget) dragMessage.style.display = 'none';
+      });
+      document.addEventListener('drop', function(e) {
+        e.preventDefault();
+        dragMessage.style.display = 'none';
+      });
+    }
   </script>
 </body>
 </html>`
