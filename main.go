@@ -57,7 +57,7 @@ func main() {
 	http.HandleFunc("/upload", uploadHandler)
 
 	log.Printf("Server running at http://localhost%s", port)
-	
+
 	if disableUpload {
 		log.Printf("File uploads are disabled")
 	} else {
@@ -157,7 +157,7 @@ func listDirectory(w http.ResponseWriter, dirPath string, urlPath string) {
 			return template.HTML(s)
 		},
 	})
-	
+
 	tmpl, err = tmpl.Parse(htmlTemplate)
 	if err != nil {
 		http.Error(w, "Error rendering page", http.StatusInternalServerError)
@@ -551,43 +551,35 @@ const htmlTemplate = `<!DOCTYPE html>
     const fileInput = document.getElementById('file-input');
     const dragMessage = document.getElementById('drag-message');
 
-    if (!fileInput.disabled) {
-      document.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        dragMessage.className = 'drag-disabled';
-        dragMessage.textContent = '📁 Drop to upload';
-        dragMessage.style.display = 'block';
-      });
-
-      document.addEventListener('dragleave', function(e) {
-        if (!e.relatedTarget) dragMessage.style.display = 'none';
-      });
-
-      document.addEventListener('drop', function(e) {
-        e.preventDefault();
-        dragMessage.style.display = 'none';
-        if (e.dataTransfer.files.length > 0) {
-          fileInput.files = e.dataTransfer.files;
-          const label = document.getElementById('file-label');
-          label.textContent = e.dataTransfer.files[0].name;
-        }
-      });
-    } else {
-      // Show message when trying to drag with uploads disabled
-      document.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        dragMessage.className = 'drag-disabled';
-        dragMessage.textContent = '🚫 Uploads disabled';
-        dragMessage.style.display = 'block';
-      });
-      document.addEventListener('dragleave', function(e) {
-        if (!e.relatedTarget) dragMessage.style.display = 'none';
-      });
-      document.addEventListener('drop', function(e) {
-        e.preventDefault();
-        dragMessage.style.display = 'none';
-      });
+    function showDragMessage(text) {
+      dragMessage.className = 'drag-disabled';
+      dragMessage.textContent = text;
+      dragMessage.style.display = 'block';
     }
+
+    function hideDragMessage() {
+      dragMessage.style.display = 'none';
+    }
+
+    document.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      const text = fileInput.disabled ? '🚫 Uploads disabled' : '📁 Drop to upload';
+      showDragMessage(text);
+    });
+
+    document.addEventListener('dragleave', function(e) {
+      if (!e.relatedTarget) hideDragMessage();
+    });
+
+    document.addEventListener('drop', function(e) {
+      e.preventDefault();
+      hideDragMessage();
+      if (!fileInput.disabled && e.dataTransfer.files.length > 0) {
+        fileInput.files = e.dataTransfer.files;
+        const label = document.getElementById('file-label');
+        label.textContent = e.dataTransfer.files[0].name;
+      }
+    });
   </script>
 </body>
 </html>`
