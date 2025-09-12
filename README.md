@@ -11,6 +11,7 @@ services:
     environment:
       - EXTRA_HEADERS=""
       - TITLE=""
+      - DISABLE_UPLOAD="false"
     restart: unless-stopped
 ```
 

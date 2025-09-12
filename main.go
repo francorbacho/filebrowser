@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"html/template"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -26,20 +28,36 @@ type FileInfo struct {
 }
 
 var (
-	title        = getEnv("TITLE", "File Server")
-	extraHeaders = getEnv("EXTRA_HEADERS", "")
+	title         = getEnv("TITLE", "File Server")
+	extraHeaders  = getEnv("EXTRA_HEADERS", "")
+	disableUpload = getBoolEnv("DISABLE_UPLOAD", false)
 	// Build information - set via ldflags during build
 	GitCommit = "unknown"
 	BuildDate = "unknown"
 )
 
 func main() {
+	var disableUploadFlag bool
+	flag.BoolVar(&disableUploadFlag, "no-upload", false, "Disable file uploads")
+	flag.Parse()
+
+	if disableUploadFlag {
+		disableUpload = true
+	}
+
 	os.MkdirAll(filesDir, os.ModePerm)
 
 	http.HandleFunc("/", pathHandler)
 	http.HandleFunc("/upload", uploadHandler)
 
 	log.Printf("Server running at http://localhost%s", port)
+	
+	if disableUpload {
+		log.Printf("File uploads are disabled")
+	} else {
+		log.Printf("File uploads are enabled")
+	}
+
 	log.Fatal(http.ListenAndServe(port, nil))
 }
 
@@ -141,27 +159,34 @@ func listDirectory(w http.ResponseWriter, dirPath string, urlPath string) {
 	}
 
 	data := struct {
-		CurrentPath  string
-		ParentURL    string
-		Files        []FileInfo
-		Title        string
-		ExtraHeaders string
-		GitCommit    string
-		BuildDate    string
+		CurrentPath   string
+		ParentURL     string
+		Files         []FileInfo
+		Title         string
+		ExtraHeaders  string
+		GitCommit     string
+		BuildDate     string
+		DisableUpload bool
 	}{
-		CurrentPath:  urlPath,
-		ParentURL:    parentURL,
-		Files:        fileInfos,
-		Title:        title,
-		ExtraHeaders: extraHeaders,
-		GitCommit:    GitCommit,
-		BuildDate:    BuildDate,
+		CurrentPath:   urlPath,
+		ParentURL:     parentURL,
+		Files:         fileInfos,
+		Title:         title,
+		ExtraHeaders:  extraHeaders,
+		GitCommit:     GitCommit,
+		BuildDate:     BuildDate,
+		DisableUpload: disableUpload,
 	}
 
 	tmpl.Execute(w, data)
 }
 
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
+	if disableUpload {
+		http.Error(w, "File uploads are disabled", http.StatusForbidden)
+		return
+	}
+
 	if r.Method != "POST" {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
@@ -224,6 +249,15 @@ func formatSize(bytes int64) string {
 func getEnv(key, defaultValue string) string {
 	if value, exists := os.LookupEnv(key); exists {
 		return value
+	}
+	return defaultValue
+}
+
+func getBoolEnv(key string, defaultValue bool) bool {
+	if value, exists := os.LookupEnv(key); exists {
+		if parsed, err := strconv.ParseBool(value); err == nil {
+			return parsed
+		}
 	}
 	return defaultValue
 }
@@ -342,6 +376,11 @@ const htmlTemplate = `<!DOCTYPE html>
     text-overflow: ellipsis;
   }
   .file-input-label:hover { opacity: 0.8; }
+  .file-input-label:disabled,
+  .file-input-label.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
   button {
     padding: 4px 8px;
     margin-left: 5px;
@@ -351,6 +390,10 @@ const htmlTemplate = `<!DOCTYPE html>
     cursor: pointer;
   }
   button:hover { opacity: 0.8; }
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
   a { color: var(--text-color); }
   footer {
     position: fixed;
@@ -385,9 +428,11 @@ const htmlTemplate = `<!DOCTYPE html>
     <input type="text" id="search" class="search-box" placeholder="Filter by filename..." autocomplete="off">
     <form class="upload-form" action="/upload" method="post" enctype="multipart/form-data">
       <input type="hidden" name="dir" value="{{.CurrentPath}}">
-      <input type="file" name="file" id="file-input" required>
-      <label for="file-input" class="file-input-label" id="file-label">Choose file...</label>
-      <button type="submit">Upload</button>
+      <input type="file" name="file" id="file-input" required {{if .DisableUpload}}disabled{{end}}>
+      <label for="file-input" class="file-input-label{{if .DisableUpload}} disabled{{end}}" id="file-label">
+        {{if .DisableUpload}}Uploads disabled{{else}}Choose file...{{end}}
+      </label>
+      <button type="submit" {{if .DisableUpload}}disabled{{end}}>Upload</button>
     </form>
   </header>
 
@@ -437,6 +482,7 @@ const htmlTemplate = `<!DOCTYPE html>
 
     document.getElementById('file-input').addEventListener('change', function(e) {
       const label = document.getElementById('file-label');
+      if (e.target.disabled) return;
       const fileName = e.target.files[0]?.name || 'Choose file...';
       label.textContent = fileName;
     });
