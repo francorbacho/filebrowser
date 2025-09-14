@@ -349,6 +349,8 @@ const htmlTemplate = `<!DOCTYPE html>
     background: var(--bg-color);
     color: var(--text-color);
     height: 100vh;
+    display: flex;
+    flex-direction: column;
   }
   header {
     background: var(--header-bg);
@@ -357,9 +359,18 @@ const htmlTemplate = `<!DOCTYPE html>
     display: flex;
     flex-direction: column;
     gap: 10px;
+    flex-shrink: 0;
   }
-  main { padding: 10px; overflow: auto; height: calc(100vh - 130px); }
-  table { width: 100%; border-collapse: collapse; }
+  main { 
+    padding: 10px; 
+    flex: 1;
+    overflow: auto;
+    padding-bottom: 40px; /* Account for footer height */
+  }
+  table { 
+    width: 100%; 
+    border-collapse: collapse;
+  }
   th {
     text-align: left;
     padding: 8px 4px;
