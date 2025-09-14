@@ -37,9 +37,10 @@ type Crumb struct {
 }
 
 var (
-	title         = getEnv("TITLE", "File Server")
-	extraHeaders  = getEnv("EXTRA_HEADERS", "")
-	disableUpload = getBoolEnv("DISABLE_UPLOAD", false)
+	title          = getEnv("TITLE", "File Server")
+	extraHeaders   = getEnv("EXTRA_HEADERS", "")
+	disableUpload  = getBoolEnv("DISABLE_UPLOAD", false)
+	disableMetrics = getBoolEnv("DISABLE_METRICS", false)
 	// Build information - set via ldflags during build
 	GitCommit = "unknown"
 	BuildDate = "unknown"
@@ -57,7 +58,9 @@ var (
 
 func main() {
 	var disableUploadFlag bool
+	var disableMetricsFlag bool
 	flag.BoolVar(&disableUploadFlag, "no-upload", false, "Disable file uploads")
+	flag.BoolVar(&disableMetricsFlag, "no-metrics", false, "Disable metrics endpoint")
 	flag.Parse()
 
 	if disableUploadFlag {
@@ -68,7 +71,10 @@ func main() {
 
 	http.HandleFunc("/", pathHandler)
 	http.HandleFunc("/upload", uploadHandler)
-	http.HandleFunc("/metrics", metricsHandler)
+	
+	if !disableMetrics {
+		http.HandleFunc("/metrics", metricsHandler)
+	}
 
 	log.Printf("Server running at http://localhost%s", port)
 
