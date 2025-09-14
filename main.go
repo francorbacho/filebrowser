@@ -306,6 +306,8 @@ const htmlTemplate = `<!DOCTYPE html>
     --row-even: #f8f8f8;
     --footer-bg: #f0f0f0;
     --footer-text: #666;
+    --footer-height: 30px;
+    --table-margin: 10px;
   }
 
   @media (prefers-color-scheme: dark) {
@@ -349,6 +351,8 @@ const htmlTemplate = `<!DOCTYPE html>
     background: var(--bg-color);
     color: var(--text-color);
     height: 100vh;
+    display: flex;
+    flex-direction: column;
   }
   header {
     background: var(--header-bg);
@@ -357,13 +361,26 @@ const htmlTemplate = `<!DOCTYPE html>
     display: flex;
     flex-direction: column;
     gap: 10px;
+    flex-shrink: 0;
   }
-  main { padding: 10px; overflow: auto; height: calc(100vh - 130px); }
-  table { width: 100%; border-collapse: collapse; }
+  main {
+    flex: 1;
+    overflow: auto;
+    padding-bottom: var(--footer-height);
+  }
+  table {
+    width: calc(100% - calc(2 * var(--table-margin)));
+    border-collapse: collapse;
+    margin: var(--table-margin);
+  }
   th {
     text-align: left;
     padding: 8px 4px;
     border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    background: var(--bg-color);
+    z-index: 10;
   }
   td {
     padding: 8px 4px;
