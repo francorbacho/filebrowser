@@ -306,6 +306,8 @@ const htmlTemplate = `<!DOCTYPE html>
     --row-even: #f8f8f8;
     --footer-bg: #f0f0f0;
     --footer-text: #666;
+    --footer-height: 30px;
+    --table-margin: 10px;
   }
 
   @media (prefers-color-scheme: dark) {
@@ -364,12 +366,12 @@ const htmlTemplate = `<!DOCTYPE html>
   main {
     flex: 1;
     overflow: auto;
-    padding-bottom: 40px; /* Account for footer height */
+    padding-bottom: var(--footer-height);
   }
   table {
-    width: calc(100% - 20px); /* Account for margin */
+    width: calc(100% - calc(2 * var(--table-margin)));
     border-collapse: collapse;
-    margin: 10px;
+    margin: var(--table-margin);
   }
   th {
     text-align: left;
