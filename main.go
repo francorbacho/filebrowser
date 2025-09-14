@@ -95,7 +95,9 @@ func main() {
 }
 
 func pathHandler(w http.ResponseWriter, r *http.Request) {
-	httpRequestsTotal.Add(1)
+	if r.URL.Path != "/metrics" {
+		httpRequestsTotal.Add(1)
+	}
 
 	urlPath := r.URL.Path
 	fullPath := filepath.Join(filesDir, urlPath)
@@ -103,20 +105,26 @@ func pathHandler(w http.ResponseWriter, r *http.Request) {
 	absFilesDir, _ := filepath.Abs(filesDir)
 	absPath, _ := filepath.Abs(fullPath)
 	if !strings.HasPrefix(absPath, absFilesDir) {
-		httpRequestsError.Add(1)
+		if r.URL.Path != "/metrics" {
+			httpRequestsError.Add(1)
+		}
 		http.NotFound(w, r)
 		return
 	}
 
 	if _, err := os.Stat(filesDir); os.IsNotExist(err) {
-		httpRequestsError.Add(1)
+		if r.URL.Path != "/metrics" {
+			httpRequestsError.Add(1)
+		}
 		http.Error(w, fmt.Sprintf("files dir %s: no such directory", filesDir), http.StatusInternalServerError)
 		return
 	}
 
 	info, err := os.Stat(fullPath)
 	if err != nil {
-		httpRequestsError.Add(1)
+		if r.URL.Path != "/metrics" {
+			httpRequestsError.Add(1)
+		}
 		if urlPath == "/" {
 			http.Error(w, fmt.Sprintf("files dir %s: inaccessible or bad perms", filesDir), http.StatusInternalServerError)
 		} else {
@@ -137,7 +145,9 @@ func pathHandler(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, fullPath)
 	}
 
-	httpRequestsSuccess.Add(1)
+	if r.URL.Path != "/metrics" {
+		httpRequestsSuccess.Add(1)
+	}
 }
 
 func listDirectory(w http.ResponseWriter, dirPath string, urlPath string) {
@@ -306,7 +316,7 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "\n")
 
 	fmt.Fprintf(w, "# HELP filebrowser_uptime_seconds Total uptime in seconds\n")
-	fmt.Fprintf(w, "# TYPE filebrowser_uptime_seconds counter\n")
+	fmt.Fprintf(w, "# TYPE filebrowser_uptime_seconds gauge\n")
 	fmt.Fprintf(w, "filebrowser_uptime_seconds %.2f\n", uptime)
 	fmt.Fprintf(w, "\n")
 
