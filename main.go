@@ -361,20 +361,24 @@ const htmlTemplate = `<!DOCTYPE html>
     gap: 10px;
     flex-shrink: 0;
   }
-  main { 
-    padding: 10px; 
+  main {
     flex: 1;
     overflow: auto;
     padding-bottom: 40px; /* Account for footer height */
   }
-  table { 
-    width: 100%; 
+  table {
+    width: calc(100% - 20px); /* Account for margin */
     border-collapse: collapse;
+    margin: 10px;
   }
   th {
     text-align: left;
     padding: 8px 4px;
     border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    background: var(--bg-color);
+    z-index: 10;
   }
   td {
     padding: 8px 4px;
