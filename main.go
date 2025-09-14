@@ -37,10 +37,10 @@ type Crumb struct {
 }
 
 var (
-	title          = getEnv("TITLE", "File Server")
-	extraHeaders   = getEnv("EXTRA_HEADERS", "")
-	disableUpload  = getBoolEnv("DISABLE_UPLOAD", false)
-	disableMetrics = getBoolEnv("DISABLE_METRICS", false)
+	title         = getEnv("TITLE", "File Server")
+	extraHeaders  = getEnv("EXTRA_HEADERS", "")
+	enableUpload  = getBoolEnv("ENABLE_UPLOAD", false)
+	enableMetrics = getBoolEnv("ENABLE_METRICS", false)
 	// Build information - set via ldflags during build
 	GitCommit = "unknown"
 	BuildDate = "unknown"
@@ -57,31 +57,38 @@ var (
 )
 
 func main() {
-	var disableUploadFlag bool
-	var disableMetricsFlag bool
-	flag.BoolVar(&disableUploadFlag, "no-upload", false, "Disable file uploads")
-	flag.BoolVar(&disableMetricsFlag, "no-metrics", false, "Disable metrics endpoint")
+	var enableUploadFlag bool
+	var enableMetricsFlag bool
+	flag.BoolVar(&enableUploadFlag, "enable-upload", false, "Enable file uploads")
+	flag.BoolVar(&enableMetricsFlag, "enable-metrics", false, "Enable metrics endpoint")
 	flag.Parse()
 
-	if disableUploadFlag {
-		disableUpload = true
+	if enableUploadFlag {
+		enableUpload = true
+	}
+
+	if enableMetricsFlag {
+		enableMetrics = true
 	}
 
 	os.MkdirAll(filesDir, os.ModePerm)
 
 	http.HandleFunc("/", pathHandler)
 	http.HandleFunc("/upload", uploadHandler)
-	
-	if !disableMetrics {
-		http.HandleFunc("/metrics", metricsHandler)
-	}
+	http.HandleFunc("/metrics", metricsHandler)
 
 	log.Printf("Server running at http://localhost%s", port)
 
-	if disableUpload {
-		log.Printf("File uploads are disabled")
-	} else {
+	if enableUpload {
 		log.Printf("File uploads are enabled")
+	} else {
+		log.Printf("File uploads are disabled")
+	}
+
+	if enableMetrics {
+		log.Printf("Metrics endpoint available at /metrics")
+	} else {
+		log.Printf("Metrics endpoint is disabled")
 	}
 
 	log.Fatal(http.ListenAndServe(port, nil))
@@ -89,7 +96,7 @@ func main() {
 
 func pathHandler(w http.ResponseWriter, r *http.Request) {
 	httpRequestsTotal.Add(1)
-	
+
 	urlPath := r.URL.Path
 	fullPath := filepath.Join(filesDir, urlPath)
 
@@ -129,7 +136,7 @@ func pathHandler(w http.ResponseWriter, r *http.Request) {
 		fileServes.Add(1)
 		http.ServeFile(w, r, fullPath)
 	}
-	
+
 	httpRequestsSuccess.Add(1)
 }
 
@@ -213,7 +220,7 @@ func listDirectory(w http.ResponseWriter, dirPath string, urlPath string) {
 		ExtraHeaders:  extraHeaders,
 		GitCommit:     GitCommit,
 		BuildDate:     BuildDate,
-		DisableUpload: disableUpload,
+		DisableUpload: !enableUpload,
 		Breadcrumbs:   breadcrumbs,
 	}
 
@@ -222,8 +229,8 @@ func listDirectory(w http.ResponseWriter, dirPath string, urlPath string) {
 
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	uploadsTotal.Add(1)
-	
-	if disableUpload {
+
+	if !enableUpload {
 		uploadsError.Add(1)
 		http.Error(w, "File uploads are disabled", http.StatusForbidden)
 		return
@@ -281,43 +288,48 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func metricsHandler(w http.ResponseWriter, r *http.Request) {
+	if !enableMetrics {
+		http.Error(w, "Metrics are disabled", http.StatusForbidden)
+		return
+	}
+
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-	
+
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	
+
 	uptime := time.Since(startTime).Seconds()
-	
+
 	fmt.Fprintf(w, "# HELP filebrowser_info Information about the file browser\n")
 	fmt.Fprintf(w, "# TYPE filebrowser_info gauge\n")
 	fmt.Fprintf(w, "filebrowser_info{version=\"%s\",build_date=\"%s\"} 1\n", GitCommit, BuildDate)
 	fmt.Fprintf(w, "\n")
-	
+
 	fmt.Fprintf(w, "# HELP filebrowser_uptime_seconds Total uptime in seconds\n")
 	fmt.Fprintf(w, "# TYPE filebrowser_uptime_seconds counter\n")
 	fmt.Fprintf(w, "filebrowser_uptime_seconds %.2f\n", uptime)
 	fmt.Fprintf(w, "\n")
-	
+
 	fmt.Fprintf(w, "# HELP filebrowser_http_requests_total Total number of HTTP requests\n")
 	fmt.Fprintf(w, "# TYPE filebrowser_http_requests_total counter\n")
 	fmt.Fprintf(w, "filebrowser_http_requests_total{status=\"total\"} %d\n", httpRequestsTotal.Load())
 	fmt.Fprintf(w, "filebrowser_http_requests_total{status=\"success\"} %d\n", httpRequestsSuccess.Load())
 	fmt.Fprintf(w, "filebrowser_http_requests_total{status=\"error\"} %d\n", httpRequestsError.Load())
 	fmt.Fprintf(w, "\n")
-	
+
 	fmt.Fprintf(w, "# HELP filebrowser_uploads_total Total number of file uploads\n")
 	fmt.Fprintf(w, "# TYPE filebrowser_uploads_total counter\n")
 	fmt.Fprintf(w, "filebrowser_uploads_total{status=\"total\"} %d\n", uploadsTotal.Load())
 	fmt.Fprintf(w, "filebrowser_uploads_total{status=\"success\"} %d\n", uploadsSuccess.Load())
 	fmt.Fprintf(w, "filebrowser_uploads_total{status=\"error\"} %d\n", uploadsError.Load())
 	fmt.Fprintf(w, "\n")
-	
+
 	fmt.Fprintf(w, "# HELP filebrowser_operations_total Total number of file operations\n")
 	fmt.Fprintf(w, "# TYPE filebrowser_operations_total counter\n")
 	fmt.Fprintf(w, "filebrowser_operations_total{type=\"directory_list\"} %d\n", directoryLists.Load())
 	fmt.Fprintf(w, "filebrowser_operations_total{type=\"file_serve\"} %d\n", fileServes.Load())
 	fmt.Fprintf(w, "\n")
-	
+
 	fmt.Fprintf(w, "# HELP filebrowser_memory_bytes Memory usage in bytes\n")
 	fmt.Fprintf(w, "# TYPE filebrowser_memory_bytes gauge\n")
 	fmt.Fprintf(w, "filebrowser_memory_bytes{type=\"alloc\"} %d\n", m.Alloc)
@@ -325,23 +337,23 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "filebrowser_memory_bytes{type=\"heap_alloc\"} %d\n", m.HeapAlloc)
 	fmt.Fprintf(w, "filebrowser_memory_bytes{type=\"heap_sys\"} %d\n", m.HeapSys)
 	fmt.Fprintf(w, "\n")
-	
+
 	fmt.Fprintf(w, "# HELP filebrowser_goroutines Current number of goroutines\n")
 	fmt.Fprintf(w, "# TYPE filebrowser_goroutines gauge\n")
 	fmt.Fprintf(w, "filebrowser_goroutines %d\n", runtime.NumGoroutine())
 	fmt.Fprintf(w, "\n")
-	
+
 	fmt.Fprintf(w, "# HELP filebrowser_gc_total Total number of garbage collections\n")
 	fmt.Fprintf(w, "# TYPE filebrowser_gc_total counter\n")
 	fmt.Fprintf(w, "filebrowser_gc_total %d\n", m.NumGC)
 	fmt.Fprintf(w, "\n")
-	
+
 	fmt.Fprintf(w, "# HELP filebrowser_config Configuration settings\n")
 	fmt.Fprintf(w, "# TYPE filebrowser_config gauge\n")
-	if disableUpload {
-		fmt.Fprintf(w, "filebrowser_config{setting=\"uploads_disabled\"} 1\n")
-	} else {
+	if enableUpload {
 		fmt.Fprintf(w, "filebrowser_config{setting=\"uploads_enabled\"} 1\n")
+	} else {
+		fmt.Fprintf(w, "filebrowser_config{setting=\"uploads_disabled\"} 1\n")
 	}
 }
 
