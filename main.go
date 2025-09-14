@@ -9,9 +9,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
+	"time"
 )
 
 const (
@@ -40,6 +43,16 @@ var (
 	// Build information - set via ldflags during build
 	GitCommit = "unknown"
 	BuildDate = "unknown"
+	// Metrics
+	startTime           = time.Now()
+	httpRequestsTotal   atomic.Uint64
+	httpRequestsSuccess atomic.Uint64
+	httpRequestsError   atomic.Uint64
+	uploadsTotal        atomic.Uint64
+	uploadsSuccess      atomic.Uint64
+	uploadsError        atomic.Uint64
+	directoryLists      atomic.Uint64
+	fileServes          atomic.Uint64
 )
 
 func main() {
@@ -55,6 +68,7 @@ func main() {
 
 	http.HandleFunc("/", pathHandler)
 	http.HandleFunc("/upload", uploadHandler)
+	http.HandleFunc("/metrics", metricsHandler)
 
 	log.Printf("Server running at http://localhost%s", port)
 
@@ -68,23 +82,28 @@ func main() {
 }
 
 func pathHandler(w http.ResponseWriter, r *http.Request) {
+	httpRequestsTotal.Add(1)
+	
 	urlPath := r.URL.Path
 	fullPath := filepath.Join(filesDir, urlPath)
 
 	absFilesDir, _ := filepath.Abs(filesDir)
 	absPath, _ := filepath.Abs(fullPath)
 	if !strings.HasPrefix(absPath, absFilesDir) {
+		httpRequestsError.Add(1)
 		http.NotFound(w, r)
 		return
 	}
 
 	if _, err := os.Stat(filesDir); os.IsNotExist(err) {
+		httpRequestsError.Add(1)
 		http.Error(w, fmt.Sprintf("files dir %s: no such directory", filesDir), http.StatusInternalServerError)
 		return
 	}
 
 	info, err := os.Stat(fullPath)
 	if err != nil {
+		httpRequestsError.Add(1)
 		if urlPath == "/" {
 			http.Error(w, fmt.Sprintf("files dir %s: inaccessible or bad perms", filesDir), http.StatusInternalServerError)
 		} else {
@@ -98,10 +117,14 @@ func pathHandler(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, urlPath+"/", http.StatusFound)
 			return
 		}
+		directoryLists.Add(1)
 		listDirectory(w, fullPath, urlPath)
 	} else {
+		fileServes.Add(1)
 		http.ServeFile(w, r, fullPath)
 	}
+	
+	httpRequestsSuccess.Add(1)
 }
 
 func listDirectory(w http.ResponseWriter, dirPath string, urlPath string) {
@@ -192,7 +215,10 @@ func listDirectory(w http.ResponseWriter, dirPath string, urlPath string) {
 }
 
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
+	uploadsTotal.Add(1)
+	
 	if disableUpload {
+		uploadsError.Add(1)
 		http.Error(w, "File uploads are disabled", http.StatusForbidden)
 		return
 	}
@@ -212,6 +238,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
+		uploadsError.Add(1)
 		http.Error(w, "Invalid upload", http.StatusBadRequest)
 		return
 	}
@@ -223,12 +250,14 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	absFilesDir, _ := filepath.Abs(filesDir)
 	absFinalPath, _ := filepath.Abs(finalPath)
 	if !strings.HasPrefix(absFinalPath, absFilesDir) {
+		uploadsError.Add(1)
 		http.Error(w, "Invalid file path", http.StatusForbidden)
 		return
 	}
 
 	dst, err := os.Create(finalPath)
 	if err != nil {
+		uploadsError.Add(1)
 		http.Error(w, "Unable to save file", http.StatusInternalServerError)
 		return
 	}
@@ -236,11 +265,78 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	_, err = io.Copy(dst, file)
 	if err != nil {
+		uploadsError.Add(1)
 		http.Error(w, "Error saving file", http.StatusInternalServerError)
 		return
 	}
 
+	uploadsSuccess.Add(1)
 	http.Redirect(w, r, targetDir, http.StatusSeeOther)
+}
+
+func metricsHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	
+	uptime := time.Since(startTime).Seconds()
+	
+	fmt.Fprintf(w, "# HELP filebrowser_info Information about the file browser\n")
+	fmt.Fprintf(w, "# TYPE filebrowser_info gauge\n")
+	fmt.Fprintf(w, "filebrowser_info{version=\"%s\",build_date=\"%s\"} 1\n", GitCommit, BuildDate)
+	fmt.Fprintf(w, "\n")
+	
+	fmt.Fprintf(w, "# HELP filebrowser_uptime_seconds Total uptime in seconds\n")
+	fmt.Fprintf(w, "# TYPE filebrowser_uptime_seconds counter\n")
+	fmt.Fprintf(w, "filebrowser_uptime_seconds %.2f\n", uptime)
+	fmt.Fprintf(w, "\n")
+	
+	fmt.Fprintf(w, "# HELP filebrowser_http_requests_total Total number of HTTP requests\n")
+	fmt.Fprintf(w, "# TYPE filebrowser_http_requests_total counter\n")
+	fmt.Fprintf(w, "filebrowser_http_requests_total{status=\"total\"} %d\n", httpRequestsTotal.Load())
+	fmt.Fprintf(w, "filebrowser_http_requests_total{status=\"success\"} %d\n", httpRequestsSuccess.Load())
+	fmt.Fprintf(w, "filebrowser_http_requests_total{status=\"error\"} %d\n", httpRequestsError.Load())
+	fmt.Fprintf(w, "\n")
+	
+	fmt.Fprintf(w, "# HELP filebrowser_uploads_total Total number of file uploads\n")
+	fmt.Fprintf(w, "# TYPE filebrowser_uploads_total counter\n")
+	fmt.Fprintf(w, "filebrowser_uploads_total{status=\"total\"} %d\n", uploadsTotal.Load())
+	fmt.Fprintf(w, "filebrowser_uploads_total{status=\"success\"} %d\n", uploadsSuccess.Load())
+	fmt.Fprintf(w, "filebrowser_uploads_total{status=\"error\"} %d\n", uploadsError.Load())
+	fmt.Fprintf(w, "\n")
+	
+	fmt.Fprintf(w, "# HELP filebrowser_operations_total Total number of file operations\n")
+	fmt.Fprintf(w, "# TYPE filebrowser_operations_total counter\n")
+	fmt.Fprintf(w, "filebrowser_operations_total{type=\"directory_list\"} %d\n", directoryLists.Load())
+	fmt.Fprintf(w, "filebrowser_operations_total{type=\"file_serve\"} %d\n", fileServes.Load())
+	fmt.Fprintf(w, "\n")
+	
+	fmt.Fprintf(w, "# HELP filebrowser_memory_bytes Memory usage in bytes\n")
+	fmt.Fprintf(w, "# TYPE filebrowser_memory_bytes gauge\n")
+	fmt.Fprintf(w, "filebrowser_memory_bytes{type=\"alloc\"} %d\n", m.Alloc)
+	fmt.Fprintf(w, "filebrowser_memory_bytes{type=\"sys\"} %d\n", m.Sys)
+	fmt.Fprintf(w, "filebrowser_memory_bytes{type=\"heap_alloc\"} %d\n", m.HeapAlloc)
+	fmt.Fprintf(w, "filebrowser_memory_bytes{type=\"heap_sys\"} %d\n", m.HeapSys)
+	fmt.Fprintf(w, "\n")
+	
+	fmt.Fprintf(w, "# HELP filebrowser_goroutines Current number of goroutines\n")
+	fmt.Fprintf(w, "# TYPE filebrowser_goroutines gauge\n")
+	fmt.Fprintf(w, "filebrowser_goroutines %d\n", runtime.NumGoroutine())
+	fmt.Fprintf(w, "\n")
+	
+	fmt.Fprintf(w, "# HELP filebrowser_gc_total Total number of garbage collections\n")
+	fmt.Fprintf(w, "# TYPE filebrowser_gc_total counter\n")
+	fmt.Fprintf(w, "filebrowser_gc_total %d\n", m.NumGC)
+	fmt.Fprintf(w, "\n")
+	
+	fmt.Fprintf(w, "# HELP filebrowser_config Configuration settings\n")
+	fmt.Fprintf(w, "# TYPE filebrowser_config gauge\n")
+	if disableUpload {
+		fmt.Fprintf(w, "filebrowser_config{setting=\"uploads_disabled\"} 1\n")
+	} else {
+		fmt.Fprintf(w, "filebrowser_config{setting=\"uploads_enabled\"} 1\n")
+	}
 }
 
 func formatSize(bytes int64) string {
