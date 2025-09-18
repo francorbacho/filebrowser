@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -359,7 +360,7 @@ func recordRequestDuration(method string, duration float64) {
 	requestDurationSum[method].Add(durationMicros)
 
 	bucketThresholds := []string{"0.1", "0.5", "1.0", "+Inf"}
-	thresholds := []float64{0.1, 0.5, 1.0, float64(^uint64(0))}
+	thresholds := []float64{0.1, 0.5, 1.0, math.Inf(1)}
 
 	for i, threshold := range thresholds {
 		if duration <= threshold {
