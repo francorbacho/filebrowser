@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -54,6 +55,29 @@ var (
 	uploadsError        atomic.Uint64
 	directoryLists      atomic.Uint64
 	fileServes          atomic.Uint64
+
+	requestDurationBuckets = map[string]map[string]*atomic.Uint64{
+		"GET": {
+			"0.1":  &atomic.Uint64{},
+			"0.5":  &atomic.Uint64{},
+			"1.0":  &atomic.Uint64{},
+			"+Inf": &atomic.Uint64{},
+		},
+		"POST": {
+			"0.1":  &atomic.Uint64{},
+			"0.5":  &atomic.Uint64{},
+			"1.0":  &atomic.Uint64{},
+			"+Inf": &atomic.Uint64{},
+		},
+	}
+	requestDurationSum   = map[string]*atomic.Uint64{
+		"GET":  &atomic.Uint64{},
+		"POST": &atomic.Uint64{},
+	}
+	requestDurationCount = map[string]*atomic.Uint64{
+		"GET":  &atomic.Uint64{},
+		"POST": &atomic.Uint64{},
+	}
 )
 
 func main() {
@@ -95,6 +119,14 @@ func main() {
 }
 
 func pathHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	defer func() {
+		if r.URL.Path != "/metrics" {
+			duration := time.Since(start).Seconds()
+			recordRequestDuration(r.Method, duration)
+		}
+	}()
+
 	if r.URL.Path != "/metrics" {
 		httpRequestsTotal.Add(1)
 	}
@@ -175,13 +207,27 @@ func listDirectory(w http.ResponseWriter, dirPath string, urlPath string) {
 		}
 
 		entryURL := entry.Name()
+		var size string
 		if entry.IsDir() {
 			entryURL += "/"
+			subDirPath := filepath.Join(dirPath, entry.Name())
+			if subEntries, err := os.ReadDir(subDirPath); err == nil {
+				itemCount := len(subEntries)
+				if itemCount == 1 {
+					size = "1 item"
+				} else {
+					size = fmt.Sprintf("%d items", itemCount)
+				}
+			} else {
+				size = "-"
+			}
+		} else {
+			size = formatSize(info.Size())
 		}
 
 		fileInfos = append(fileInfos, FileInfo{
 			Name:         entry.Name(),
-			Size:         formatSize(info.Size()),
+			Size:         size,
 			LastModified: info.ModTime().Format("2006-01-02 15:04-07:00"),
 			IsDir:        entry.IsDir(),
 			URL:          entryURL,
@@ -238,6 +284,12 @@ func listDirectory(w http.ResponseWriter, dirPath string, urlPath string) {
 }
 
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	defer func() {
+		duration := time.Since(start).Seconds()
+		recordRequestDuration(r.Method, duration)
+	}()
+
 	uploadsTotal.Add(1)
 
 	if !enableUpload {
@@ -297,6 +349,26 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, targetDir, http.StatusSeeOther)
 }
 
+func recordRequestDuration(method string, duration float64) {
+	buckets, exists := requestDurationBuckets[method]
+	if !exists {
+		return
+	}
+
+	requestDurationCount[method].Add(1)
+	durationMicros := uint64(duration * 1_000_000)
+	requestDurationSum[method].Add(durationMicros)
+
+	bucketThresholds := []string{"0.1", "0.5", "1.0", "+Inf"}
+	thresholds := []float64{0.1, 0.5, 1.0, math.Inf(1)}
+
+	for i, threshold := range thresholds {
+		if duration <= threshold {
+			buckets[bucketThresholds[i]].Add(1)
+		}
+	}
+}
+
 func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	if !enableMetrics {
 		http.Error(w, "Metrics are disabled", http.StatusForbidden)
@@ -338,6 +410,21 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "# TYPE filebrowser_operations_total counter\n")
 	fmt.Fprintf(w, "filebrowser_operations_total{type=\"directory_list\"} %d\n", directoryLists.Load())
 	fmt.Fprintf(w, "filebrowser_operations_total{type=\"file_serve\"} %d\n", fileServes.Load())
+	fmt.Fprintf(w, "\n")
+
+	fmt.Fprintf(w, "# HELP filebrowser_http_request_duration_seconds HTTP request duration in seconds\n")
+	fmt.Fprintf(w, "# TYPE filebrowser_http_request_duration_seconds histogram\n")
+
+	for method, buckets := range requestDurationBuckets {
+		for bucket, count := range buckets {
+			fmt.Fprintf(w, "filebrowser_http_request_duration_seconds_bucket{le=\"%s\",method=\"%s\"} %d\n", bucket, method, count.Load())
+		}
+
+		sumMicros := requestDurationSum[method].Load()
+		sumSeconds := float64(sumMicros) / 1_000_000
+		fmt.Fprintf(w, "filebrowser_http_request_duration_seconds_sum{method=\"%s\"} %.6f\n", method, sumSeconds)
+		fmt.Fprintf(w, "filebrowser_http_request_duration_seconds_count{method=\"%s\"} %d\n", method, requestDurationCount[method].Load())
+	}
 	fmt.Fprintf(w, "\n")
 
 	fmt.Fprintf(w, "# HELP filebrowser_memory_bytes Memory usage in bytes\n")
