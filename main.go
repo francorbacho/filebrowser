@@ -56,27 +56,27 @@ var (
 	directoryLists      atomic.Uint64
 	fileServes          atomic.Uint64
 
-	requestDurationBuckets = map[string]map[string]atomic.Uint64{
+	requestDurationBuckets = map[string]map[string]*atomic.Uint64{
 		"GET": {
-			"0.1":  atomic.Uint64{},
-			"0.5":  atomic.Uint64{},
-			"1.0":  atomic.Uint64{},
-			"+Inf": atomic.Uint64{},
+			"0.1":  &atomic.Uint64{},
+			"0.5":  &atomic.Uint64{},
+			"1.0":  &atomic.Uint64{},
+			"+Inf": &atomic.Uint64{},
 		},
 		"POST": {
-			"0.1":  atomic.Uint64{},
-			"0.5":  atomic.Uint64{},
-			"1.0":  atomic.Uint64{},
-			"+Inf": atomic.Uint64{},
+			"0.1":  &atomic.Uint64{},
+			"0.5":  &atomic.Uint64{},
+			"1.0":  &atomic.Uint64{},
+			"+Inf": &atomic.Uint64{},
 		},
 	}
-	requestDurationSum   = map[string]atomic.Uint64{
-		"GET":  {},
-		"POST": {},
+	requestDurationSum   = map[string]*atomic.Uint64{
+		"GET":  &atomic.Uint64{},
+		"POST": &atomic.Uint64{},
 	}
-	requestDurationCount = map[string]atomic.Uint64{
-		"GET":  {},
-		"POST": {},
+	requestDurationCount = map[string]*atomic.Uint64{
+		"GET":  &atomic.Uint64{},
+		"POST": &atomic.Uint64{},
 	}
 )
 
