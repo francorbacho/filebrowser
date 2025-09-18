@@ -175,13 +175,27 @@ func listDirectory(w http.ResponseWriter, dirPath string, urlPath string) {
 		}
 
 		entryURL := entry.Name()
+		var size string
 		if entry.IsDir() {
 			entryURL += "/"
+			subDirPath := filepath.Join(dirPath, entry.Name())
+			if subEntries, err := os.ReadDir(subDirPath); err == nil {
+				itemCount := len(subEntries)
+				if itemCount == 1 {
+					size = "1 item"
+				} else {
+					size = fmt.Sprintf("%d items", itemCount)
+				}
+			} else {
+				size = "-"
+			}
+		} else {
+			size = formatSize(info.Size())
 		}
 
 		fileInfos = append(fileInfos, FileInfo{
 			Name:         entry.Name(),
-			Size:         formatSize(info.Size()),
+			Size:         size,
 			LastModified: info.ModTime().Format("2006-01-02 15:04-07:00"),
 			IsDir:        entry.IsDir(),
 			URL:          entryURL,
