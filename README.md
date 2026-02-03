@@ -12,6 +12,8 @@ services:
     environment:
       - TITLE="File Server"
       - EXTRA_HEADERS=""
+    cap_add:
+      - NET_BIND_SERVICE
     restart: unless-stopped
 ```
 

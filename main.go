@@ -19,8 +19,12 @@ import (
 )
 
 const (
-	port     = ":8000"
 	filesDir = "/files"
+)
+
+var (
+	port    string
+	address string
 )
 
 type FileInfo struct {
@@ -81,9 +85,20 @@ var (
 )
 
 func main() {
+	var enableUploadFlag bool
+	var enableMetricsFlag bool
+	var portFlag string
+	var addressFlag string
+
+	flag.BoolVar(&enableUploadFlag, "enable-upload", false, "Enable file uploads")
+	flag.BoolVar(&enableMetricsFlag, "enable-metrics", false, "Enable metrics endpoint")
+	flag.StringVar(&portFlag, "port", "8000", "Port to bind the server")
+	flag.StringVar(&addressFlag, "address", "localhost", "Address to bind the server")
+	flag.Parse()
+
 	// Health check command
 	if len(os.Args) > 1 && os.Args[1] == "health" {
-		resp, err := http.Get("http://localhost" + port)
+		resp, err := http.Get("http://" + addressFlag + ":" + portFlag)
 		if err != nil {
 			os.Exit(1)
 		}
@@ -94,11 +109,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	var enableUploadFlag bool
-	var enableMetricsFlag bool
-	flag.BoolVar(&enableUploadFlag, "enable-upload", false, "Enable file uploads")
-	flag.BoolVar(&enableMetricsFlag, "enable-metrics", false, "Enable metrics endpoint")
-	flag.Parse()
+	port = ":" + portFlag
+	address = addressFlag
 
 	if enableUploadFlag {
 		enableUpload = true
@@ -113,7 +125,7 @@ func main() {
 	http.HandleFunc("/", pathHandler)
 	http.HandleFunc("/metrics", metricsHandler)
 
-	log.Printf("Server running at http://localhost%s", port)
+	log.Printf("Server running at http://%s%s", address, port)
 
 	if enableUpload {
 		log.Printf("File uploads are enabled")
