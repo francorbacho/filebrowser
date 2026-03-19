@@ -15,4 +15,6 @@ COPY --from=builder /src/filebrowser /filebrowser
 EXPOSE 8000
 
 USER 1000:1000
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD ["/filebrowser", "health"]
 ENTRYPOINT ["/filebrowser"]

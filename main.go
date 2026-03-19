@@ -81,6 +81,19 @@ var (
 )
 
 func main() {
+	// Health check command
+	if len(os.Args) > 1 && os.Args[1] == "health" {
+		resp, err := http.Get("http://localhost" + port)
+		if err != nil {
+			os.Exit(1)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			os.Exit(0)
+		}
+		os.Exit(1)
+	}
+
 	var enableUploadFlag bool
 	var enableMetricsFlag bool
 	flag.BoolVar(&enableUploadFlag, "enable-upload", false, "Enable file uploads")
